@@ -67,7 +67,9 @@ public:
   ///* Sigma point spreading parameter
   double lambda_;
 
-
+  //* Timestep count in simualtion
+  int timestep_;
+  
   /**
    * Constructor
    */
