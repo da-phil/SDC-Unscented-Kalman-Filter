@@ -1,5 +1,5 @@
 #include "ukf.h"
-#include "Eigen/Dense"
+#include <Eigen/Dense>
 #include <iostream>
 
 using namespace std;
@@ -56,17 +56,14 @@ UKF::UKF() {
   */
   timestep_ = 0;
   is_initialized_ = false;
-  ///* State dimension
-  n_x_ = 5;
-  ///* Augmented state dimension
-  n_aug_ = 7;
-  ///* Sigma point spreading parameter
-  lambda_ = 3;
-  ///* Weights of sigma points
-  weights_ = VectorXd::Zero(2*n_aug_+1);
-  time_us_ = 0;
-  x_ = VectorXd::Zero(n_x_);
-  P_ = MatrixXd::Identity(n_x_, n_x_);
+  n_x_        = 5;
+  n_aug_      = 7;
+  lambda_     = 3-n_aug_;
+  time_us_    = 0;
+  weights_    = VectorXd::Zero(2*n_aug_+1);
+  x_          = VectorXd::Zero(n_x_);
+  Xsig_pred_  = MatrixXd::Zero(n_x_, 2*n_aug_+1);
+  P_          = MatrixXd::Identity(n_x_, n_x_);
 
 }
 
@@ -107,6 +104,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
         is_initialized_ = true;
     } else {
       timestep_++;
+      cout << "Timestep " << timestep_ << " - dt: " << dt << " - Lidar measurement" << endl;
       Prediction(dt);
       UpdateLidar(meas_package);
     }
@@ -133,6 +131,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
       is_initialized_ = true;
     } else {
       timestep_++;
+      cout << "Timestep " << timestep_ << " - dt: " << dt << " - Radar measurement" << endl;
       Prediction(dt);
       UpdateRadar(meas_package);
     }
@@ -157,7 +156,86 @@ void UKF::Prediction(double delta_t) {
   Complete this function! Estimate the object's location. Modify the state
   vector, x_. Predict sigma points, the state, and the state covariance matrix.
   */
+
+  // augmented mean vector
+  VectorXd x_aug = VectorXd(n_aug_);
+  // augmented state covariance
+  MatrixXd P_aug = MatrixXd(n_aug_, n_aug_);
+  // create sigma point matrix of augmented state space
+  MatrixXd Xsig_aug = MatrixXd(n_aug_, 2*n_aug_+1);
+  double v, yaw, yawd, nu_a, nu_yawdd;
+
+  //create augmented mean state
+  x_aug << x_, 0, 0;
+
+  //create augmented covariance matrix
+  P_aug.topLeftCorner(n_x_, n_x_) = P_;
+  P_aug.block(n_x_, n_x_, 2, 2) <<  std_a_*std_a_,  0,
+                                    0,              std_yawdd_*std_yawdd_;
+
+  //create square root matrix
+  MatrixXd A = P_aug.llt().matrixL();
+  
+  //create augmented sigma points
+  Xsig_aug.col(0) << x_aug;
+  Xsig_aug.block(0, 1, n_aug_, n_aug_) = (sqrt(lambda_+n_aug_) * A).colwise() + x_aug;
+  Xsig_aug.block(0, n_aug_+1, n_aug_, n_aug_) = (-sqrt(lambda_+n_aug_) * A).colwise() + x_aug;
+
+
+  //predicted state values by applying kinematics propagation function f(x_aug)
+  VectorXd x_pred_k = VectorXd::Zero(n_x_);
+  double delta_t_squared = delta_t*delta_t;
+  
+  for (int i = 0; i< 2*n_aug_+1; i++)
+  {
+    //extract values for better readability
+    v     = Xsig_aug(2,i);
+    yaw   = Xsig_aug(3,i);
+    yawd  = Xsig_aug(4,i);
+    nu_a  = Xsig_aug(5,i);
+    nu_yawdd = Xsig_aug(6,i);
+
+    //avoid division by zero
+    if (fabs(yawd) > std::numeric_limits<double>::epsilon()) {
+        x_pred_k(0) += v/yawd * (sin(yaw+yawd*delta_t) - sin(yaw));
+        x_pred_k(1) += v/yawd * (cos(yaw) - cos(yaw+yawd*delta_t));
+    } else {
+        x_pred_k(0) += v*delta_t*cos(yaw);
+        x_pred_k(1) += v*delta_t*sin(yaw);
+    }
+
+    // add noise on position
+    x_pred_k(0) += 0.5*nu_a*delta_t_squared * cos(yaw);
+    x_pred_k(1) += 0.5*nu_a*delta_t_squared * sin(yaw);
+    // velocity, yaw and yawdot including noise
+    x_pred_k(2) += nu_a*delta_t;
+    x_pred_k(3) += yawd*delta_t + 0.5*nu_yawdd*delta_t_squared;
+    x_pred_k(4) += nu_yawdd*delta_t;
+    //write predicted sigma point into right column
+    Xsig_pred_.col(i) = x_pred_k;
+  }
+
+  MatrixXd Xsig_pred_meanfree = Xsig_pred_;
+  
+  //set weights
+  weights_(0) = lambda_/(lambda_+n_aug_);
+  for (int i = 1; i < 2*n_aug_+1 ; i++)
+    weights_(i) = 1 / (2*(lambda_+n_aug_));
+
+  //predicted state mean
+  x_ = Xsig_pred_ * weights_;
+  
+  //predicted state covariance matrix
+  Xsig_pred_meanfree.colwise() -= x_;
+  // make sure yaw stays in range -2*PI  to  +2*PI
+  Xsig_pred_meanfree(3) = fmod(Xsig_pred_meanfree(3), 2.0*M_PI);
+  
+  P_.fill(0.0);
+  for (int i = 0; i < 2*n_aug_+1; i++)  //iterate over sigma points
+    P_ += weights_(i) * Xsig_pred_meanfree.col(i) * Xsig_pred_meanfree.col(i).transpose();
+  
 }
+
 
 /**
  * Updates the state and the state covariance matrix using a laser measurement.
@@ -172,6 +250,8 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 
   You'll also need to calculate the lidar NIS.
   */
+
+
 }
 
 /**
@@ -187,4 +267,6 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
 
   You'll also need to calculate the radar NIS.
   */
+
+
 }
