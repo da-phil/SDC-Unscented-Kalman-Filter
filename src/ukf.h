@@ -2,7 +2,7 @@
 #define UKF_H
 
 #include "measurement_package.h"
-#include "Eigen/Dense"
+#include <Eigen/Dense>
 #include <vector>
 #include <string>
 #include <fstream>
@@ -30,6 +30,10 @@ public:
 
   ///* predicted sigma points matrix
   MatrixXd Xsig_pred_;
+
+  // Measurement noise matricies
+  MatrixXd R_lidar_;
+  MatrixXd R_radar_;
 
   ///* time when the state is true, in us
   long long time_us_;
@@ -69,7 +73,9 @@ public:
 
   //* Timestep count in simualtion
   int timestep_;
-  
+
+  //* Verbose flag for activating extra debug output
+  bool verbose_;
   /**
    * Constructor
    */
