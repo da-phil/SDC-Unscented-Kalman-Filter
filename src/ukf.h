@@ -9,6 +9,7 @@
 
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
+using std::vector;
 
 class UKF {
 public:
@@ -76,6 +77,13 @@ public:
 
   //* Verbose flag for activating extra debug output
   bool verbose_;
+
+  //* Normalized Innovation Squared (NIS) value for laser and radar
+  vector<double> nis_laser_;
+  vector<double> nis_radar_;
+  int nis_laser_counter_;
+  int nis_radar_counter_;
+
   /**
    * Constructor
    */
@@ -116,6 +124,9 @@ public:
    * @param meas_package The measurement at k+1
    */
   void UpdateRadar(MeasurementPackage meas_package);
+
+
+  void write_vec(const vector<double>& vec);
 };
 
 #endif /* UKF_H */

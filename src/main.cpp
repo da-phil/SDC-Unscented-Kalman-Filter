@@ -15,6 +15,9 @@ using json = nlohmann::json;
 bool verbose = false;
 bool use_laser = true;
 bool use_radar = true;
+bool use_simulator = true;
+string inputDataFile = "";
+
 // The following UKF process noise values achieve an RMSE of 
 // [0.0739, 0.0871, 0.3532, 0.2467] in px, py, vx, vy.
 double std_a = 0.5;
@@ -101,8 +104,6 @@ int main(int argc, char *argv[])
   // Parse args
   ParseArgs(argc, argv);
 
-  uWS::Hub h;
-
   cout << "UKF config: use_laser="<<use_laser<< ", use_radar="<<use_radar <<
           ", verbose="<<verbose << ", std_a="<<std_a << ", std_yawdd="<<std_yawdd << endl;
 
@@ -113,6 +114,7 @@ int main(int argc, char *argv[])
   Tools tools;
   vector<VectorXd> estimations;
   vector<VectorXd> ground_truth;
+  uWS::Hub h;
 
   h.onMessage([&ukf,&tools,&estimations,&ground_truth](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode)
   {

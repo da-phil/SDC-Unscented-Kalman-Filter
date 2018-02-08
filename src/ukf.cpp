@@ -92,6 +92,9 @@ void UKF::Init(bool verbose, bool use_laser, bool use_radar,
   weights_(0) = lambda_ / (lambda_ + n_aug_);
   for (int i = 1; i < 2*n_aug_+1 ; i++)
     weights_(i) = 1 / (2*(lambda_+n_aug_));
+
+  nis_laser_counter_ = 0;
+  nis_radar_counter_ = 0;
 }
 
 
@@ -184,7 +187,8 @@ void UKF::Prediction(double delta_t) {
   Complete this function! Estimate the object's location. Modify the state
   vector, x_. Predict sigma points, the state, and the state covariance matrix.
   */
-  cout << "Prediction step" << endl;
+  if (verbose_)
+    cout << "Prediction step" << endl;
 
     //create augmented mean vector
   VectorXd x_aug = VectorXd(n_aug_);
@@ -292,7 +296,7 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
  // Vector / Matrix output format
   Eigen::IOFormat CleanFmt(cout.precision(3), 0, ", ", "\n", "  [", "]");
   int n_z = 2; // measurement dimension
-  double p_x, p_y;
+  double p_x, p_y, nis;
   //create matrix for sigma points in measurement space
   MatrixXd Zsig = MatrixXd(n_z, 2*n_aug_+1);
   //mean predicted measurement
@@ -346,6 +350,20 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   x_  += K * z_diff;
   P_  -= K * S * K.transpose();
 
+  nis = z_diff.transpose() * S.inverse() * z_diff;
+  nis_laser_.push_back(nis);
+  cout << "NIS(laser): ";
+  if (verbose_) {
+    cout << endl;
+    write_vec(nis_laser_);
+    cout << endl;
+  }
+
+  if (nis > 5.991)
+    nis_laser_counter_++;
+
+  cout << 100.0 * nis_laser_counter_ / timestep_ << "% (" << nis_laser_counter_ << " samples out of " << timestep_ << ") are out of 95% NIS range!" << endl;
+
   if (verbose_) {
     cout << "x_: " << endl << x_.format(CleanFmt) << endl;
     cout << "Xsig_pred_: " << endl << Xsig_pred_.format(CleanFmt) << endl;
@@ -374,7 +392,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   // Vector / Matrix output format
   Eigen::IOFormat CleanFmt(cout.precision(3), 0, ", ", "\n", "  [", "]");
   int n_z = 3; // measurement dimension
-  double p_x, p_y, v, yaw;
+  double p_x, p_y, v, yaw, nis;
   //create matrix for sigma points in measurement space
   MatrixXd Zsig = MatrixXd(n_z, 2*n_aug_+1);
   //mean predicted measurement
@@ -436,10 +454,32 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   x_  += K * z_diff;
   P_  -= K * S * K.transpose();
 
+  nis = z_diff.transpose() * S.inverse() * z_diff;
+  if (nis > 7.8)
+    nis_radar_counter_++;
+
+  nis_radar_.push_back(nis);
+
+  cout << "NIS(radar): ";
+  if (verbose_) {
+    cout << endl;
+    write_vec(nis_radar_);
+    cout << endl;
+  }
+
+  cout << 100.0 * nis_radar_counter_ / timestep_ << "% (" << nis_radar_counter_ << " samples out of " << timestep_ << ") are out of 95% NIS range!" << endl;
+
   if (verbose_) {
     cout << "x_: " << endl << x_.format(CleanFmt) << endl;
     cout << "Xsig_pred_: " << endl << Xsig_pred_.format(CleanFmt) << endl;
     cout << "S: " << endl << S.format(CleanFmt) <<  endl;
     cout << "Tc: " << endl << Tc.format(CleanFmt) << endl;
   }
+}
+
+void UKF::write_vec(const vector<double>& vec) {
+    for (vector<double>::const_iterator iter = vec.begin();
+        iter != vec.end(); ++iter) {
+        cout << *iter << ", ";
+    }
 }
