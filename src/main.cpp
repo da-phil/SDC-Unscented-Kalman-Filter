@@ -43,12 +43,12 @@ std::string hasData(std::string s) {
 void PrintHelp() {
     std::cout <<
             "Help:"
-            "--verbose   <0|1>:       Turn on verbose output, default: "<< verbose<<"\n"
-            "--use_laser <0|1>:       Turn on or off laser measurements, default: "<<use_laser<<"\n"
-            "--use_radar <0|1>:       Turn on or off radar measurements, default: "<<use_radar<<"\n"
-            "--std_a     <num>:       Standard deviation for linear acceleration noise, default: "<<std_a<<"\n"
-            "--std_yawdd <num>:       Standard deviation for angular acceleration noise, default: "<<std_yawdd<<"\n"
-            "--help:                  Show help\n";
+            "--verbose   <0|1>:   Turn on verbose output, default: "<< verbose<<"\n"
+            "--use_laser <0|1>:   Turn on or off laser measurements, default: "<<use_laser<<"\n"
+            "--use_radar <0|1>:   Turn on or off radar measurements, default: "<<use_radar<<"\n"
+            "--std_a     <num>:   Standard deviation for linear acceleration noise, default: "<<std_a<<"\n"
+            "--std_yawdd <num>:   Standard deviation for angular acceleration noise, default: "<<std_yawdd<<"\n"
+            "--help:              Show help\n";
     exit(1);
 }
 

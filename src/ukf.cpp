@@ -9,7 +9,7 @@ using std::vector;
 
 
 UKF::UKF() {
-  Init(false, true, true, 0.5, 0.2);
+  Init();
 }
 
 
@@ -22,8 +22,7 @@ UKF::UKF(bool verbose, bool use_laser, bool use_radar, double std_a, double std_
  * Initializes Unscented Kalman filter
  * This is scaffolding, do not modify
  */
-void UKF::Init(bool verbose, bool use_laser, bool use_radar,
-               double std_a, double std_yawdd)
+void UKF::Init(bool verbose, bool use_laser, bool use_radar, double std_a, double std_yawdd)
 {
   // if this is false, laser measurements will be ignored (except during init)
   use_laser_ = use_laser;
