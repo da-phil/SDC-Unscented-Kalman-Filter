@@ -9,7 +9,7 @@ using std::vector;
 
 
 UKF::UKF() {
-  Init(false, true, true, 2.0, 0.5);
+  Init(false, true, true, 0.5, 0.2);
 }
 
 

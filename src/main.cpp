@@ -15,8 +15,10 @@ using json = nlohmann::json;
 bool verbose = false;
 bool use_laser = true;
 bool use_radar = true;
-double std_a = 2.0;
-double std_yawdd = 0.5;
+// The following UKF process noise values achieve an RMSE of 
+// [0.0739, 0.0871, 0.3532, 0.2467] in px, py, vx, vy.
+double std_a = 0.5;
+double std_yawdd = 0.2;
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
