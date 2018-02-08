@@ -1,14 +1,22 @@
 #include <uWS/uWS.h>
 #include <iostream>
+#include <cstdlib>
 #include "json.hpp"
 #include <math.h>
 #include "ukf.h"
 #include "tools.h"
+#include <getopt.h>
 
 using namespace std;
 
 // for convenience
 using json = nlohmann::json;
+
+bool verbose = false;
+bool use_laser = true;
+bool use_radar = true;
+double std_a = 2.0;
+double std_yawdd = 0.5;
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
@@ -26,12 +34,78 @@ std::string hasData(std::string s) {
   return "";
 }
 
-int main()
+
+void PrintHelp() {
+    std::cout <<
+            "Help:"
+            "--verbose   <0|1>:       Turn on verbose output, default: "<< verbose<<"\n"
+            "--use_laser <0|1>:       Turn on or off laser measurements, default: "<<use_laser<<"\n"
+            "--use_radar <0|1>:       Turn on or off radar measurements, default: "<<use_radar<<"\n"
+            "--std_a     <num>:       Standard deviation for linear acceleration noise, default: "<<std_a<<"\n"
+            "--std_yawdd <num>:       Standard deviation for angular acceleration noise, default: "<<std_yawdd<<"\n"
+            "--help:                  Show help\n";
+    exit(1);
+}
+
+
+void ParseArgs(int argc, char *argv[]) {
+  char c;
+  const char* const short_opts = "v:l:r:a:y:h";
+  const option long_opts[] = {
+          {"verbose",     1, nullptr, 'v'},
+          {"use_laser",   1, nullptr, 'l'},
+          {"use_radar",   1, nullptr, 'r'},
+          {"std_a",       1, nullptr, 'a'},
+          {"std_yawdd",   1, nullptr, 'y'},
+          {"help",        0, nullptr, 'y'},
+          {nullptr,       0, nullptr, 0}
+  };
+
+  while (true)
+  {
+    const auto opt = getopt_long(argc, argv, short_opts, long_opts, nullptr);
+
+    if (opt == -1)
+        break;
+
+    switch (opt)
+    {
+      case 'v':
+        verbose = (stoi(optarg) > 0) ? true : false;
+        break;
+      case 'l':
+        use_laser = (stoi(optarg) > 0) ? true : false;
+        break;
+      case 'r':
+        use_radar = (stoi(optarg) > 0) ? true : false;
+        break;
+      case 'a':
+        std_a = atof(optarg);
+        break;
+      case 'y':
+        std_yawdd = atof(optarg);
+        break;
+      case 'h':
+      default:
+        PrintHelp();
+        break;
+    }
+  }
+}
+
+
+int main(int argc, char *argv[])
 {
+  // Parse args
+  ParseArgs(argc, argv);
+
   uWS::Hub h;
 
-  // Create a Kalman Filter instance
-  UKF ukf;
+  cout << "UKF config: use_laser="<<use_laser<< ", use_radar="<<use_radar <<
+          ", verbose="<<verbose << ", std_a="<<std_a << ", std_yawdd="<<std_yawdd << endl;
+
+  // Create a parameterized Unscented Kalman Filter instance
+  UKF ukf(verbose, use_laser, use_radar, std_a, std_yawdd);
 
   // used to compute the RMSE later
   Tools tools;

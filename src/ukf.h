@@ -80,11 +80,17 @@ public:
    * Constructor
    */
   UKF();
-
+  UKF(bool verbose, bool use_laser, bool use_radar, double std_a, double std_yawdd);
   /**
    * Destructor
    */
   virtual ~UKF();
+
+  /**
+   * UKF initialization
+   */
+  void Init(bool verbose = false, bool use_laser = true, bool use_radar = true,
+            double std_a = 2.0, double std_yawdd = 0.5);
 
   /**
    * ProcessMeasurement
