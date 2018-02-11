@@ -12,7 +12,6 @@ using namespace std;
 // for convenience
 using json = nlohmann::json;
 
-vector<VectorXd> ground_truth;
 
 bool verbose = false;
 bool use_laser = true;
@@ -123,18 +122,16 @@ MeasurementPackage getMeasurement(string &sensor_measurement)
   MeasurementPackage meas_package;
   istringstream iss(sensor_measurement);
   long long timestamp;
-  float x_gt, y_gt, vx_gt, vy_gt;
-  VectorXd gt_values(4);
+  float px, py, ro, theta, ro_dot, x_gt, y_gt, vx_gt, vy_gt, yaw_gt, yawrate_gt;
 
   // reads first element from the current line
   string sensor_type;
   iss >> sensor_type;
+  meas_package.ground_truth_ = VectorXd(6);
 
   if (sensor_type.compare("L") == 0) {
         meas_package.sensor_type_ = MeasurementPackage::LASER;
         meas_package.raw_measurements_ = VectorXd(2);
-        float px;
-        float py;
         iss >> px;
         iss >> py;
         meas_package.raw_measurements_ << px, py;
@@ -143,9 +140,6 @@ MeasurementPackage getMeasurement(string &sensor_measurement)
   } else if (sensor_type.compare("R") == 0) {
         meas_package.sensor_type_ = MeasurementPackage::RADAR;
         meas_package.raw_measurements_ = VectorXd(3);
-        float ro;
-        float theta;
-        float ro_dot;
         iss >> ro;
         iss >> theta;
         iss >> ro_dot;
@@ -158,11 +152,9 @@ MeasurementPackage getMeasurement(string &sensor_measurement)
   iss >> y_gt;
   iss >> vx_gt;
   iss >> vy_gt;
-  gt_values(0) = x_gt;
-  gt_values(1) = y_gt; 
-  gt_values(2) = vx_gt;
-  gt_values(3) = vy_gt;
-  ground_truth.push_back(gt_values); // FIXME: don't use global variable here!
+  iss >> yaw_gt;
+  iss >> yawrate_gt;
+  meas_package.ground_truth_ << x_gt, y_gt, vx_gt, vy_gt, yaw_gt, yawrate_gt;
   return meas_package;
 }
 
@@ -182,6 +174,7 @@ int main(int argc, char *argv[])
   // used to compute the RMSE later
   Tools tools;
   vector<VectorXd> estimations;
+  vector<VectorXd> ground_truth;
   ifstream in_file(inputDataFile.c_str(), ifstream::in);
   ofstream out_file(outputDataFile.c_str(), ofstream::out);
 
@@ -216,21 +209,22 @@ int main(int argc, char *argv[])
             string sensor_measurement = j[1]["sensor_measurement"];
             MeasurementPackage meas_package = getMeasurement(sensor_measurement);
 
-              //Call ProcessMeasurment(meas_package) for Kalman filter
-        	  ukf.ProcessMeasurement(meas_package);    	  
+            //Call ProcessMeasurment(meas_package) for Kalman filter
+            ukf.ProcessMeasurement(meas_package);    	  
 
-        	  //Push the current estimated x,y positon from the Kalman filter's state vector
-        	  VectorXd estimate(4);
-        	  double p_x = ukf.x_(0);
-        	  double p_y = ukf.x_(1);
-        	  double v   = ukf.x_(2);
-        	  double yaw = ukf.x_(3);
-        	  double v1  = cos(yaw)*v;
-        	  double v2  = sin(yaw)*v;
-        	  estimate << p_x, p_y, v1, v2;
-        	  estimations.push_back(estimate);
+            //Push the current estimated x,y positon from the Kalman filter's state vector
+            VectorXd estimate(4);
+            double p_x = ukf.x_(0);
+            double p_y = ukf.x_(1);
+            double v   = ukf.x_(2);
+            double yaw = ukf.x_(3);
+            double v1  = cos(yaw)*v;
+            double v2  = sin(yaw)*v;
+            estimate << p_x, p_y, v1, v2;
+            estimations.push_back(estimate);
+            ground_truth.push_back(meas_package.ground_truth_.head(4));
 
-        	  VectorXd RMSE = tools.CalculateRMSE(estimations, ground_truth);
+            VectorXd RMSE = tools.CalculateRMSE(estimations, ground_truth);
 
             json msgJson;
             msgJson["estimate_x"] = p_x;
@@ -288,8 +282,11 @@ int main(int argc, char *argv[])
   }
   else
   {
-    Eigen::IOFormat CSVFormat(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", ", ", "", "", "", "");
-    string line = "# px,  py,  v,  yaw,  yawd,  nis_laser,  nis_radar, rmse_px,  rmse_py,  rmse_vx,  rmse_vy";
+    string seperator = ", ";
+    Eigen::IOFormat CSVFormat(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", seperator, "", "", "", "");
+    string line = "# px,  py,  v,  yaw,  yawrate,  nis_laser,  nis_radar,  " 
+                  "px_true,  py_true,  vx_true,  vy_true,  yaw_true,  yawrate_true,  "
+                  "rmse_px,  rmse_py,  rmse_vx,  rmse_vy";
     out_file << line << endl;
 
     while (getline(in_file, line)) {
@@ -309,9 +306,10 @@ int main(int argc, char *argv[])
       double v2  = sin(yaw)*v;
       estimate << p_x, p_y, v1, v2;
       estimations.push_back(estimate);
-
+      ground_truth.push_back(meas_package.ground_truth_.head(4));
       VectorXd RMSE = tools.CalculateRMSE(estimations, ground_truth);
-      out_file << ukf.x_.format(CSVFormat) << ", " << ukf.nis_laser_  << ", " << ukf.nis_radar_ << ", " << RMSE.format(CSVFormat) << endl;
+      out_file << ukf.x_.format(CSVFormat) << seperator << ukf.nis_laser_  << seperator << ukf.nis_radar_ << seperator
+              << meas_package.ground_truth_.format(CSVFormat) << seperator << RMSE.format(CSVFormat) << endl;
     }
 
     if (out_file.is_open())
