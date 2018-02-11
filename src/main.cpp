@@ -18,7 +18,8 @@ bool verbose = false;
 bool use_laser = true;
 bool use_radar = true;
 bool use_simulator = true;
-string inputDataFile = "";
+string inputDataFile  = "../data/obj_pose-laser-radar-synthetic-input.txt";
+string outputDataFile = "../data/obj_pose-fused-output.txt";
 
 // The following UKF process noise values achieve an RMSE of 
 // [0.0739, 0.0871, 0.3532, 0.2467] in px, py, vx, vy.
@@ -45,27 +46,34 @@ std::string hasData(std::string s) {
 void PrintHelp() {
     std::cout <<
             "Help:\n"
-            "  --verbose   <0|1>:   Turn on verbose output, default: "<< verbose<<"\n"
-            "  --use_laser <0|1>:   Turn on or off laser measurements, default: "<<use_laser<<"\n"
-            "  --use_radar <0|1>:   Turn on or off radar measurements, default: "<<use_radar<<"\n"
-            "  --std_a     <num>:   Standard deviation for linear acceleration noise, default: "<<std_a<<"\n"
-            "  --std_yawdd <num>:   Standard deviation for angular acceleration noise, default: "<<std_yawdd<<"\n"
-            "  --help:              Show help\n";
+            "  --verbose        <0|1>:    Turn on verbose output, default: "<< verbose<<"\n"
+            "  --use_laser      <0|1>:    Turn on or off laser measurements, default: "<<use_laser<<"\n"
+            "  --use_radar      <0|1>:    Turn on or off radar measurements, default: "<<use_radar<<"\n"
+            "  --std_a          <num>:    Standard deviation for linear acceleration noise, default: "<<std_a<<"\n"
+            "  --std_yawdd      <num>:    Standard deviation for angular acceleration noise, default: "<<std_yawdd<<"\n"
+            "  --use_simulator  <0|1>:    Use simulator for input and output or instead an input output csv file, default: "<< use_simulator<<"\n"
+            "  --input_file     <path>:   Path to input csv file (only possible when simulator mode is not set), default: "<<inputDataFile<<"\n" 
+            "  --output_file    <path>:   Path to output csv file (only possible when simulator mode is not set), default: "<<outputDataFile<<"\n" 
+            "  --help:                    Show help\n";
     exit(1);
 }
 
 
-void ParseArgs(int argc, char *argv[]) {
+void ParseArgs(int argc, char *argv[])
+{
   char c;
-  const char* const short_opts = "v:l:r:a:y:h";
+  const char* const short_opts = "v:l:r:a:y:s:i:o:h";
   const option long_opts[] = {
-          {"verbose",     1, nullptr, 'v'},
-          {"use_laser",   1, nullptr, 'l'},
-          {"use_radar",   1, nullptr, 'r'},
-          {"std_a",       1, nullptr, 'a'},
-          {"std_yawdd",   1, nullptr, 'y'},
-          {"help",        0, nullptr, 'h'},
-          {nullptr,       0, nullptr, 0}
+          {"verbose",       1, nullptr, 'v'},
+          {"use_laser",     1, nullptr, 'l'},
+          {"use_radar",     1, nullptr, 'r'},
+          {"std_a",         1, nullptr, 'a'},
+          {"std_yawdd",     1, nullptr, 'y'},
+          {"use_simulator", 1, nullptr, 's'},          
+          {"input_file",    1, nullptr, 'i'},
+          {"output_file",   1, nullptr, 'o'},          
+          {"help",          0, nullptr, 'h'},
+          {nullptr,         0, nullptr, 0}
   };
 
   while (true)
@@ -91,6 +99,15 @@ void ParseArgs(int argc, char *argv[]) {
         break;
       case 'y':
         std_yawdd = atof(optarg);
+        break;
+      case 's':
+        use_simulator = (stoi(optarg) > 0) ? true : false;
+        break;
+      case 'i':
+        inputDataFile = string(optarg);
+        break;
+      case 'o':
+        outputDataFile = string(optarg);
         break;
       case 'h':
       default:
@@ -165,6 +182,18 @@ int main(int argc, char *argv[])
   // used to compute the RMSE later
   Tools tools;
   vector<VectorXd> estimations;
+  ifstream in_file(inputDataFile.c_str(), ifstream::in);
+  ofstream out_file(outputDataFile.c_str(), ofstream::out);
+
+  if (!in_file.is_open()) {
+    cerr << "Cannot open input file: " << inputDataFile << endl;
+    exit(EXIT_FAILURE);
+  }
+  if (!out_file.is_open()) {
+    cerr << "Cannot open output file: " << outputDataFile << endl;
+    exit(EXIT_FAILURE);
+  }
+
 
   if (use_simulator)
   {
@@ -259,7 +288,30 @@ int main(int argc, char *argv[])
   }
   else
   {
-    // TODO: implement reading from input file!
+    Eigen::IOFormat CSVFormat(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", ", ", "", "", "", "");
+    string line = "# px,  py,  v,  yaw,  yawd, rmse_px,  rmse_py,  rmse_vx,  rmse_vy";
+    out_file << line << endl;
+    
+    while (getline(in_file, line)) {
+      string sensor_type;
+      MeasurementPackage meas_package = getMeasurement(line);
 
+      //Call ProcessMeasurment(meas_package) for Kalman filter
+      ukf.ProcessMeasurement(meas_package);       
+
+      //Push the current estimated x,y positon from the Kalman filter's state vector
+      VectorXd estimate(4);
+      double p_x = ukf.x_(0);
+      double p_y = ukf.x_(1);
+      double v   = ukf.x_(2);
+      double yaw = ukf.x_(3);
+      double v1  = cos(yaw)*v;
+      double v2  = sin(yaw)*v;
+      estimate << p_x, p_y, v1, v2;
+      estimations.push_back(estimate);
+
+      VectorXd RMSE = tools.CalculateRMSE(estimations, ground_truth);
+      out_file << ukf.x_.format(CSVFormat) << ", " << RMSE.format(CSVFormat) << endl;
+    }
   }
 }
