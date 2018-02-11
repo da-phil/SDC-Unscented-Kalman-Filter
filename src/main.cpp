@@ -289,9 +289,9 @@ int main(int argc, char *argv[])
   else
   {
     Eigen::IOFormat CSVFormat(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", ", ", "", "", "", "");
-    string line = "# px,  py,  v,  yaw,  yawd, rmse_px,  rmse_py,  rmse_vx,  rmse_vy";
+    string line = "# px,  py,  v,  yaw,  yawd,  nis_laser,  nis_radar, rmse_px,  rmse_py,  rmse_vx,  rmse_vy";
     out_file << line << endl;
-    
+
     while (getline(in_file, line)) {
       string sensor_type;
       MeasurementPackage meas_package = getMeasurement(line);
@@ -311,7 +311,12 @@ int main(int argc, char *argv[])
       estimations.push_back(estimate);
 
       VectorXd RMSE = tools.CalculateRMSE(estimations, ground_truth);
-      out_file << ukf.x_.format(CSVFormat) << ", " << RMSE.format(CSVFormat) << endl;
+      out_file << ukf.x_.format(CSVFormat) << ", " << ukf.nis_laser_  << ", " << ukf.nis_radar_ << ", " << RMSE.format(CSVFormat) << endl;
     }
+
+    if (out_file.is_open())
+      out_file.close();
+    if (in_file.is_open())
+      in_file.close();
   }
 }

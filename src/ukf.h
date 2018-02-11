@@ -79,8 +79,8 @@ public:
   bool verbose_;
 
   //* Normalized Innovation Squared (NIS) value for laser and radar
-  vector<double> nis_laser_;
-  vector<double> nis_radar_;
+  double nis_laser_;
+  double nis_radar_;
   int nis_laser_counter_;
   int nis_radar_counter_;
 

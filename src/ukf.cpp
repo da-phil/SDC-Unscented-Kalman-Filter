@@ -7,6 +7,10 @@ using Eigen::MatrixXd;
 using Eigen::VectorXd;
 using std::vector;
 
+// Chi-square distribution parameters for NIS check
+#define CHI_SQ_3  7.8
+#define CHI_SQ_2  5.991
+
 
 UKF::UKF() {
   Init();
@@ -295,7 +299,7 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
  // Vector / Matrix output format
   Eigen::IOFormat CleanFmt(cout.precision(3), 0, ", ", "\n", "  [", "]");
   int n_z = 2; // measurement dimension
-  double p_x, p_y, nis;
+  double p_x, p_y;
   //create matrix for sigma points in measurement space
   MatrixXd Zsig = MatrixXd(n_z, 2*n_aug_+1);
   //mean predicted measurement
@@ -349,18 +353,11 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   x_  += K * z_diff;
   P_  -= K * S * K.transpose();
 
-  nis = z_diff.transpose() * S.inverse() * z_diff;
-  nis_laser_.push_back(nis);
-  cout << "NIS(laser): ";
-  if (verbose_) {
-    cout << endl;
-    write_vec(nis_laser_);
-    cout << endl;
-  }
-
-  if (nis > 5.991)
+  nis_laser_ = z_diff.transpose() * S.inverse() * z_diff;
+  if (nis_laser_ > CHI_SQ_2)
     nis_laser_counter_++;
 
+  cout << "NIS(laser): ";
   cout << 100.0 * nis_laser_counter_ / timestep_ << "% (" << nis_laser_counter_ << " samples out of " << timestep_ << ") are out of 95% NIS range!" << endl;
 
   if (verbose_) {
@@ -391,7 +388,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   // Vector / Matrix output format
   Eigen::IOFormat CleanFmt(cout.precision(3), 0, ", ", "\n", "  [", "]");
   int n_z = 3; // measurement dimension
-  double p_x, p_y, v, yaw, nis;
+  double p_x, p_y, v, yaw;
   //create matrix for sigma points in measurement space
   MatrixXd Zsig = MatrixXd(n_z, 2*n_aug_+1);
   //mean predicted measurement
@@ -453,19 +450,11 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   x_  += K * z_diff;
   P_  -= K * S * K.transpose();
 
-  nis = z_diff.transpose() * S.inverse() * z_diff;
-  if (nis > 7.8)
+  nis_radar_ = z_diff.transpose() * S.inverse() * z_diff;
+  if (nis_radar_ > CHI_SQ_3)
     nis_radar_counter_++;
 
-  nis_radar_.push_back(nis);
-
   cout << "NIS(radar): ";
-  if (verbose_) {
-    cout << endl;
-    write_vec(nis_radar_);
-    cout << endl;
-  }
-
   cout << 100.0 * nis_radar_counter_ / timestep_ << "% (" << nis_radar_counter_ << " samples out of " << timestep_ << ") are out of 95% NIS range!" << endl;
 
   if (verbose_) {
