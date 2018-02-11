@@ -165,8 +165,10 @@ int main(int argc, char *argv[])
   // Parse cmd args
   ParseArgs(argc, argv);
 
-  cout << "UKF config: use_laser="<<use_laser<< ", use_radar="<<use_radar <<
+  cout << "UKF config:" << endl << "use_laser="<<use_laser<< ", use_radar="<<use_radar <<
           ", verbose="<<verbose << ", std_a="<<std_a << ", std_yawdd="<<std_yawdd << endl;
+  if (!use_simulator)
+    cout << "CSV input file: " << inputDataFile << endl << "CSV output file: " << outputDataFile << endl;
 
   // Create a parameterized Unscented Kalman Filter instance
   UKF ukf(verbose, use_laser, use_radar, std_a, std_yawdd);
@@ -282,6 +284,9 @@ int main(int argc, char *argv[])
   }
   else
   {
+    // In this case we don't use the simulator for measurement input and RMSE output,
+    // instead we read measurement input from a csv file and write out filtered data
+    // and ground truth out into another csv file.
     string seperator = ", ";
     Eigen::IOFormat CSVFormat(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", seperator, "", "", "", "");
     string line = "# px,  py,  v,  yaw,  yawrate,  nis_laser,  nis_radar,  " 
@@ -317,4 +322,11 @@ int main(int argc, char *argv[])
     if (in_file.is_open())
       in_file.close();
   }
+
+  cout << "Final NIS(laser): ";
+  cout << 100.0 * ukf.nis_laser_counter_ / ukf.timestep_ << "% (" << ukf.nis_laser_counter_ << " samples out of "
+       << ukf.timestep_ << ") are out of 95% NIS range!" << endl;
+  cout << "Final NIS(radar): ";
+  cout << 100.0 * ukf.nis_radar_counter_ / ukf.timestep_ << "% (" << ukf.nis_radar_counter_ << " samples out of " 
+       << ukf.timestep_ << ") are out of 95% NIS range!" << endl;
 }

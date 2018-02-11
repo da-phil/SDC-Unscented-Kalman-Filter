@@ -120,7 +120,8 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   //compute the time elapsed between the current and previous measurements
   dt = (meas_package.timestamp_ - time_us_) / 1.0e6; //time in seconds
   time_us_ = meas_package.timestamp_;
-  cout << "Timestep " << timestep_ << " - dt: " << dt << endl;
+  if (verbose_)
+    cout << "Timestep " << timestep_ << " - dt: " << dt << endl;
   timestep_++;
 
   if (!is_initialized_) {
@@ -128,7 +129,9 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
       /**
       Initialize state by lidar measurement.
       */
-      cout << "Initial lidar measurement received!" << endl;
+      if (verbose_)
+        cout << "Initial lidar measurement received!" << endl;
+
       double px, py, v, yaw, yawd;
       px = meas_package.raw_measurements_[0];
       py = meas_package.raw_measurements_[1];
@@ -145,7 +148,9 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
       Initialize state by radar measurement, 
       this involves converting radar measurements from polar to cartesian coordinates.
       */
-      cout << "Initial radar measurement received!" << endl;
+      if (verbose_)
+          cout << "Initial radar measurement received!" << endl;
+
       double px, py, v, yaw, yawd;
       double rho = meas_package.raw_measurements_[0];
       double phi = meas_package.raw_measurements_[1];
@@ -162,7 +167,6 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     }
   }
   else {
-
       Prediction(dt);
 
       if ((meas_package.sensor_type_ == MeasurementPackage::LASER) && use_laser_)
@@ -171,11 +175,13 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
         UpdateRadar(meas_package);
   }
 
-  // print the output
-  std::string sep = "\n----------------------------------------\n";
-  Eigen::IOFormat CleanFmt(cout.precision(3), 0, ", ", "\n", "  [", "]");
-  cout << "x_ = " << endl << x_.format(CleanFmt) << endl;
-  cout << "P_ = " << endl << P_.format(CleanFmt) << endl << endl;
+  if (verbose_) {
+    // print the output
+    std::string sep = "\n----------------------------------------\n";
+    Eigen::IOFormat CleanFmt(cout.precision(3), 0, ", ", "\n", "  [", "]");
+    cout << "x_ = " << endl << x_.format(CleanFmt) << endl;
+    cout << "P_ = " << endl << P_.format(CleanFmt) << endl << endl;
+  }
 }
 
 /**
@@ -357,14 +363,9 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   if (nis_laser_ > CHI_SQ_2)
     nis_laser_counter_++;
 
-  cout << "NIS(laser): ";
-  cout << 100.0 * nis_laser_counter_ / timestep_ << "% (" << nis_laser_counter_ << " samples out of " << timestep_ << ") are out of 95% NIS range!" << endl;
-
   if (verbose_) {
-    cout << "x_: " << endl << x_.format(CleanFmt) << endl;
-    cout << "Xsig_pred_: " << endl << Xsig_pred_.format(CleanFmt) << endl;
-    cout << "S: " << endl << S.format(CleanFmt) <<  endl;
-    cout << "Tc: " << endl << Tc.format(CleanFmt) << endl;
+    cout << "NIS(laser): ";
+    cout << 100.0 * nis_laser_counter_ / timestep_ << "% (" << nis_laser_counter_ << " samples out of " << timestep_ << ") are out of 95% NIS range!" << endl;
   }
 }
 
@@ -454,14 +455,9 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   if (nis_radar_ > CHI_SQ_3)
     nis_radar_counter_++;
 
-  cout << "NIS(radar): ";
-  cout << 100.0 * nis_radar_counter_ / timestep_ << "% (" << nis_radar_counter_ << " samples out of " << timestep_ << ") are out of 95% NIS range!" << endl;
-
   if (verbose_) {
-    cout << "x_: " << endl << x_.format(CleanFmt) << endl;
-    cout << "Xsig_pred_: " << endl << Xsig_pred_.format(CleanFmt) << endl;
-    cout << "S: " << endl << S.format(CleanFmt) <<  endl;
-    cout << "Tc: " << endl << Tc.format(CleanFmt) << endl;
+    cout << "NIS(radar): ";
+    cout << 100.0 * nis_radar_counter_ / timestep_ << "% (" << nis_radar_counter_ << " samples out of " << timestep_ << ") are out of 95% NIS range!" << endl;
   }
 }
 
