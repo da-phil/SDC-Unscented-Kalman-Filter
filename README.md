@@ -29,24 +29,40 @@ This repository includes two files that can be used to set up and intall [uWebSo
 from the simulator.
 
 
+## Running the program
+
+### Program documentation
+```
+Help:
+  --verbose        <0|1>:    Turn on verbose output, default: 0
+  --use_laser      <0|1>:    Turn on or off laser measurements, default: 1
+  --use_radar      <0|1>:    Turn on or off radar measurements, default: 1
+  --std_a          <num>:    Standard deviation for linear acceleration noise, default: 0.5
+  --std_yawdd      <num>:    Standard deviation for angular acceleration noise, default: 0.2
+  --use_simulator  <0|1>:    Use simulator for input and output or instead an input output csv file, default: 1
+  --input_file     <path>:   Path to input csv file (only possible when simulator mode is not set), default: ../data/obj_pose-laser-radar-synthetic-input.txt
+  --output_file    <path>:   Path to output csv file (only possible when simulator mode is not set), default: ../data/obj_pose-fused-output.txt
+  --help:                    Show help
+```
+
+The program supports two modes: simulator backend (`--use_simulator=1`) and data files as in- and output (`--use_simulator=0`)
+
+### Simulator mode
+When using the simulator mode the unity based udacity simulator mentioned above has to be started and the first menu option selected. Then the UKF can be started by invoking:
+
+    ./UnscentedKF --use_simulator=1
 
 
-INPUT: values provided by the simulator to the c++ program
+### Data file mode
 
-["sensor_measurement"] => the measurment that the simulator observed (either lidar or radar)
+Start the program using udacity provided `data/obj_pose-laser-radar-synthetic-input.txt` file as input and storing the filtered states, rmse and ground truth for evaluation and visualization in `data/obj_pose-fused-output-all.txt`:
 
+    ./UnscentedKF --use_simulator=0 --input_file=../data/obj_pose-laser-radar-synthetic-input.txt --output_file=../data/obj_pose-fused-output-all.txt
 
-OUTPUT: values provided by the c++ program to the simulator
+Using the same input and output files but deactivating the laser scanner and only using the radar data for filtering (can't be called sensor fusion anymore, I guess):
 
-["estimate_x"] <= kalman filter estimated position x
-["estimate_y"] <= kalman filter estimated position y
-["rmse_x"]
-["rmse_y"]
-["rmse_vx"]
-["rmse_vy"]
+    ./UnscentedKF --use_simulator=0 --use_laser=0 --input_file=../data/obj_pose-laser-radar-synthetic-input.txt --output_file=../data/obj_pose-fused-output-all.txt
 
-
-5. ./UnscentedKF --use_simulator=1
 
 ## Results
 
