@@ -21,9 +21,9 @@ string inputDataFile  = "../data/obj_pose-laser-radar-synthetic-input.txt";
 string outputDataFile = "../data/obj_pose-fused-output.txt";
 
 // The following UKF process noise values achieve an RMSE of 
-// [0.0739, 0.0871, 0.3532, 0.2467] in px, py, vx, vy.
-double std_a = 0.5;
-double std_yawdd = 0.2;
+// [0.0638, 0.084, 0.332, 0.217] in px, py, vx, vy.
+double std_a = 0.6;
+double std_yawdd = 0.4;
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
@@ -165,7 +165,7 @@ int main(int argc, char *argv[])
   // Parse cmd args
   ParseArgs(argc, argv);
 
-  cout << "UKF config:" << endl << "use_laser="<<use_laser<< ", use_radar="<<use_radar <<
+  cout << "========== UKF config ==========" << endl << "use_laser="<<use_laser<< ", use_radar="<<use_radar <<
           ", verbose="<<verbose << ", std_a="<<std_a << ", std_yawdd="<<std_yawdd << endl;
   if (!use_simulator)
     cout << "CSV input file: " << inputDataFile << endl << "CSV output file: " << outputDataFile << endl;
@@ -177,6 +177,7 @@ int main(int argc, char *argv[])
   Tools tools;
   vector<VectorXd> estimations;
   vector<VectorXd> ground_truth;
+  VectorXd RMSE;
   ifstream in_file(inputDataFile.c_str(), ifstream::in);
   ofstream out_file(outputDataFile.c_str(), ofstream::out);
 
@@ -312,7 +313,7 @@ int main(int argc, char *argv[])
       estimate << p_x, p_y, v1, v2;
       estimations.push_back(estimate);
       ground_truth.push_back(meas_package.ground_truth_.head(4));
-      VectorXd RMSE = tools.CalculateRMSE(estimations, ground_truth);
+      RMSE = tools.CalculateRMSE(estimations, ground_truth);
       out_file << ukf.x_.format(CSVFormat) << seperator << ukf.nis_laser_  << seperator << ukf.nis_radar_ << seperator
               << meas_package.ground_truth_.format(CSVFormat) << seperator << RMSE.format(CSVFormat) << endl;
     }
@@ -329,4 +330,6 @@ int main(int argc, char *argv[])
   cout << "Final NIS(radar): ";
   cout << 100.0 * ukf.nis_radar_counter_ / ukf.timestep_ << "% (" << ukf.nis_radar_counter_ << " samples out of " 
        << ukf.timestep_ << ") are out of 95% NIS range!" << endl;
+  cout << "Final RMSE:" << endl << "RMSE(px)="<< RMSE(0) << ", RMSE(py)="<<RMSE(1) << endl <<
+          "RMSE(vx)="<<RMSE(2) << ", RMSE(vy)="<<RMSE(3) << endl;
 }
