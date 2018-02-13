@@ -28,22 +28,28 @@ UKF::UKF(bool verbose, bool use_laser, bool use_radar, double std_a, double std_
  */
 void UKF::Init(bool verbose, bool use_laser, bool use_radar, double std_a, double std_yawdd)
 {
+  n_x_        = 5; // we use 5 state variables: px, py, v, yaw, yawrate
+  n_aug_      = 7; // augmented state vector additionally includes std_a and std_yawdd
+
   // if this is false, laser measurements will be ignored (except during init)
   use_laser_ = use_laser;
 
   // if this is false, radar measurements will be ignored (except during init)
   use_radar_ = use_radar;
-
   verbose_ = verbose;
 
   // initial state vector
-  x_ = VectorXd(5);
+  x_ = VectorXd(n_x_);
 
   // initial covariance matrix
-  P_ = MatrixXd(5, 5);
-
+  P_ = MatrixXd(n_x_, n_x_);
+  H_laser_ = MatrixXd(2, n_x_);
   R_lidar_ = MatrixXd(2, 2);
   R_radar_ = MatrixXd(3, 3);
+
+  // measurement matrix for linear kalman filter update from laser scanner data
+  H_laser_ << 1,    0,    0,    0,  0,
+              0,    1,    0,    0,  0;
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
   std_a_ = std_a;
@@ -77,8 +83,6 @@ void UKF::Init(bool verbose, bool use_laser, bool use_radar, double std_a, doubl
   */
   timestep_ = 0;
   is_initialized_ = false;
-  n_x_        = 5;
-  n_aug_      = 7;
   lambda_     = 3-n_aug_;
   time_us_    = 0;
   weights_    = VectorXd::Zero(2*n_aug_+1);
@@ -288,9 +292,51 @@ void UKF::Prediction(double delta_t) {
 
 /**
  * Updates the state and the state covariance matrix using a laser measurement.
+ * This function just uses the simple linear Kalman filter equations becasuse
+ * the measurement equations are linear (we measure the position states directly).
  * @param {MeasurementPackage} meas_package
  */
 void UKF::UpdateLidar(MeasurementPackage meas_package) {
+  /**
+  TODO:
+
+  Complete this function! Use lidar data to update the belief about the object's
+  position. Modify the state vector, x_, and covariance, P_.
+
+  You'll also need to calculate the lidar NIS.
+  */
+  if (verbose_)
+    cout << "UpdateLidar step" << endl;
+
+  VectorXd y = meas_package.raw_measurements_ - H_laser_ * x_;
+  MatrixXd Ht = H_laser_.transpose();
+  MatrixXd S = H_laser_ * P_ * Ht + R_lidar_;
+  MatrixXd Si = S.inverse();
+  MatrixXd PHt = P_ * Ht;
+  MatrixXd K = PHt * Si;
+  MatrixXd I = MatrixXd::Identity(n_x_, n_x_);
+
+  //new estimate
+  x_ = x_ + (K * y);
+  P_ = (I - K * H_laser_) * P_;
+
+  nis_laser_ = y.transpose() * S.inverse() * y;
+  if (nis_laser_ > CHI_SQ_2)
+    nis_laser_counter_++;
+
+  if (verbose_) {
+    cout << "NIS(laser): ";
+    cout << 100.0 * nis_laser_counter_ / timestep_ << "% (" << nis_laser_counter_ << " samples out of " << timestep_ << ") are out of 95% NIS range!" << endl;
+  }
+}
+
+
+/**
+ * Updates the state and the state covariance matrix using a laser measurement
+ * by applying the unscented transform instead of the linear kalman filter equations.
+ * @param {MeasurementPackage} meas_package
+ */
+void UKF::UpdateLidarUnscented(MeasurementPackage meas_package) {
   /**
   TODO:
 
