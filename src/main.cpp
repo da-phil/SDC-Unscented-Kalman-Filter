@@ -4,6 +4,7 @@
 #include "json.hpp"
 #include <math.h>
 #include "ukf.h"
+#include "ekf.h"
 #include "tools.h"
 #include <getopt.h>
 
@@ -19,6 +20,7 @@ bool use_radar = true;
 bool use_simulator = true;
 string inputDataFile  = "../data/obj_pose-laser-radar-synthetic-input.txt";
 string outputDataFile = "../data/obj_pose-fused-output.txt";
+string filter_choice  = "ukf";
 
 // The following UKF process noise values achieve an RMSE of 
 // [0.0638, 0.084, 0.332, 0.217] in px, py, vx, vy.
@@ -45,15 +47,16 @@ std::string hasData(std::string s) {
 void PrintHelp() {
     std::cout <<
             "Help:\n"
-            "  --verbose        <0|1>:    Turn on verbose output, default: "<< verbose<<"\n"
-            "  --use_laser      <0|1>:    Turn on or off laser measurements, default: "<<use_laser<<"\n"
-            "  --use_radar      <0|1>:    Turn on or off radar measurements, default: "<<use_radar<<"\n"
-            "  --std_a          <num>:    Standard deviation for linear acceleration noise, default: "<<std_a<<"\n"
-            "  --std_yawdd      <num>:    Standard deviation for angular acceleration noise, default: "<<std_yawdd<<"\n"
-            "  --use_simulator  <0|1>:    Use simulator for input and output or instead an input output csv file, default: "<< use_simulator<<"\n"
-            "  --input_file     <path>:   Path to input csv file (only possible when simulator mode is not set), default: "<<inputDataFile<<"\n" 
-            "  --output_file    <path>:   Path to output csv file (only possible when simulator mode is not set), default: "<<outputDataFile<<"\n" 
-            "  --help:                    Show help\n";
+            "  --filter         <ekf|ukf>:  Choose between EKF and UKF, default: "<<filter_choice<<"\n"
+            "  --verbose        <0|1>:      Turn on verbose output, default: "<<verbose<<"\n"
+            "  --use_laser      <0|1>:      Turn on or off laser measurements, default: "<<use_laser<<"\n"
+            "  --use_radar      <0|1>:      Turn on or off radar measurements, default: "<<use_radar<<"\n"
+            "  --std_a          <num>:      Standard deviation for linear acceleration noise, default: "<<std_a<<"\n"
+            "  --std_yawdd      <num>:      Standard deviation for angular acceleration noise, default: "<<std_yawdd<<"\n"
+            "  --use_simulator  <0|1>:      Use simulator for input and output or instead an input output csv file, default: "<< use_simulator<<"\n"
+            "  --input_file     <path>:     Path to input csv file (only possible when simulator mode is not set), default: "<<inputDataFile<<"\n" 
+            "  --output_file    <path>:     Path to output csv file (only possible when simulator mode is not set), default: "<<outputDataFile<<"\n"
+            "  --help:                      Show help\n";
     exit(1);
 }
 
@@ -70,7 +73,8 @@ void ParseArgs(int argc, char *argv[])
           {"std_yawdd",     1, nullptr, 'y'},
           {"use_simulator", 1, nullptr, 's'},          
           {"input_file",    1, nullptr, 'i'},
-          {"output_file",   1, nullptr, 'o'},          
+          {"output_file",   1, nullptr, 'o'},
+          {"filter",        1, nullptr, 'f'},           
           {"help",          0, nullptr, 'h'},
           {nullptr,         0, nullptr, 0}
   };
@@ -107,6 +111,9 @@ void ParseArgs(int argc, char *argv[])
         break;
       case 'o':
         outputDataFile = string(optarg);
+        break;
+      case 'f':
+        filter_choice = string(optarg);
         break;
       case 'h':
       default:
@@ -170,8 +177,17 @@ int main(int argc, char *argv[])
   if (!use_simulator)
     cout << "CSV input file: " << inputDataFile << endl << "CSV output file: " << outputDataFile << endl;
 
+  //Filter filter;
+
   // Create a parameterized Unscented Kalman Filter instance
-  UKF ukf(verbose, use_laser, use_radar, std_a, std_yawdd);
+  UKF filter(verbose, use_laser, use_radar, std_a, std_yawdd);
+  /*
+  if (filter_choice.compare("ukf")) {
+    filter = UKF(verbose, use_laser, use_radar, std_a, std_yawdd);
+  } else {
+    filter = EKF(verbose, use_laser, use_radar, std_a, std_yawdd);
+  }
+  */
 
   // used to compute the RMSE later
   Tools tools;
@@ -194,7 +210,7 @@ int main(int argc, char *argv[])
   if (use_simulator)
   {
     uWS::Hub h;
-    h.onMessage([&ukf,&tools,&estimations,&ground_truth](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode)
+    h.onMessage([&filter,&tools,&estimations,&ground_truth](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode)
     {
       // "42" at the start of the message means there's a websocket message event.
       // The 4 signifies a websocket message
@@ -213,14 +229,14 @@ int main(int argc, char *argv[])
             MeasurementPackage meas_package = getMeasurement(sensor_measurement);
 
             //Call ProcessMeasurment(meas_package) for Kalman filter
-            ukf.ProcessMeasurement(meas_package);    	  
+            filter.ProcessMeasurement(meas_package);    	  
 
             //Push the current estimated x,y positon from the Kalman filter's state vector
             VectorXd estimate(4);
-            double p_x = ukf.x_(0);
-            double p_y = ukf.x_(1);
-            double v   = ukf.x_(2);
-            double yaw = ukf.x_(3);
+            double p_x = filter.x_(0);
+            double p_y = filter.x_(1);
+            double v   = filter.x_(2);
+            double yaw = filter.x_(3);
             double v1  = cos(yaw)*v;
             double v2  = sin(yaw)*v;
             estimate << p_x, p_y, v1, v2;
@@ -300,21 +316,21 @@ int main(int argc, char *argv[])
       MeasurementPackage meas_package = getMeasurement(line);
 
       //Call ProcessMeasurment(meas_package) for Kalman filter
-      ukf.ProcessMeasurement(meas_package);       
+      filter.ProcessMeasurement(meas_package);       
 
       //Push the current estimated x,y positon from the Kalman filter's state vector
       VectorXd estimate(4);
-      double p_x = ukf.x_(0);
-      double p_y = ukf.x_(1);
-      double v   = ukf.x_(2);
-      double yaw = ukf.x_(3);
+      double p_x = filter.x_(0);
+      double p_y = filter.x_(1);
+      double v   = filter.x_(2);
+      double yaw = filter.x_(3);
       double v1  = cos(yaw)*v;
       double v2  = sin(yaw)*v;
       estimate << p_x, p_y, v1, v2;
       estimations.push_back(estimate);
       ground_truth.push_back(meas_package.ground_truth_.head(4));
       RMSE = tools.CalculateRMSE(estimations, ground_truth);
-      out_file << ukf.x_.format(CSVFormat) << seperator << ukf.nis_laser_  << seperator << ukf.nis_radar_ << seperator
+      out_file << filter.x_.format(CSVFormat) << seperator << filter.nis_laser_  << seperator << filter.nis_radar_ << seperator
               << meas_package.ground_truth_.format(CSVFormat) << seperator << RMSE.format(CSVFormat) << endl;
     }
 
@@ -325,11 +341,11 @@ int main(int argc, char *argv[])
   }
 
   cout << "Final NIS(laser): ";
-  cout << 100.0 * ukf.nis_laser_counter_ / ukf.timestep_ << "% (" << ukf.nis_laser_counter_ << " samples out of "
-       << ukf.timestep_ << ") are out of 95% NIS range!" << endl;
+  cout << 100.0 * filter.nis_laser_counter_ / filter.timestep_ << "% (" << filter.nis_laser_counter_ << " samples out of "
+       << filter.timestep_ << ") are out of 95% NIS range!" << endl;
   cout << "Final NIS(radar): ";
-  cout << 100.0 * ukf.nis_radar_counter_ / ukf.timestep_ << "% (" << ukf.nis_radar_counter_ << " samples out of " 
-       << ukf.timestep_ << ") are out of 95% NIS range!" << endl;
+  cout << 100.0 * filter.nis_radar_counter_ / filter.timestep_ << "% (" << filter.nis_radar_counter_ << " samples out of " 
+       << filter.timestep_ << ") are out of 95% NIS range!" << endl;
   cout << "Final RMSE:" << endl << "RMSE(px)="<< RMSE(0) << ", RMSE(py)="<<RMSE(1) << endl <<
           "RMSE(vx)="<<RMSE(2) << ", RMSE(vy)="<<RMSE(3) << endl;
 }

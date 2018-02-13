@@ -14,6 +14,7 @@ set(CMAKE_CXX_FLAGS, "${CXX_FLAGS}")
 
 set(sources
 	src/ukf.cpp
+	src/ekf.cpp
 	src/main.cpp
 	src/tools.cpp
 )
