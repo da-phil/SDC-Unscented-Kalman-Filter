@@ -52,6 +52,13 @@ public:
    */
   void UpdateLidar(MeasurementPackage meas_package);
 
+
+  /**
+  * Measurement equation for radar update
+  */
+  MatrixXd h_radar(void);
+
+
   /**
    * Updates the state and the state covariance matrix using a radar measurement
    * @param meas_package The measurement at k+1
