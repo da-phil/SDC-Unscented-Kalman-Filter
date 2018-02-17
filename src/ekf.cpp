@@ -302,7 +302,7 @@ void EKF::UpdateLidar(MeasurementPackage meas_package) {
   x_ = x_ + (K * y);
   P_ = (I - K * H_laser_) * P_;
 
-  nis_laser_ = y.transpose() * S.inverse() * y;
+  nis_laser_ = y.transpose() * Si * y;
   if (nis_laser_ > CHI_SQ_2)
     nis_laser_counter_++;
 
@@ -334,7 +334,7 @@ MatrixXd EKF::h_radar(void) {
     py = std::numeric_limits<float>::epsilon();
 
   z_pred(1) = fmod(atan2(py, px), 2.*M_PI);
-  z_pred(2) = (px*v*cos(z_pred(1)) + py*v*sin(z_pred(1))) / z_pred(0);
+  z_pred(2) = (px*v*cos(yaw) + py*v*sin(yaw)) / z_pred(0);
 
   return z_pred;
 }
