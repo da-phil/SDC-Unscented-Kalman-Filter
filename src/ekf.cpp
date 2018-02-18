@@ -167,8 +167,6 @@ void EKF::ProcessMeasurement(MeasurementPackage meas_package) {
   }
   else {
       Prediction(dt);
-      cout << "x_ = " << endl << x_.format(CleanFmt) << endl;
-      cout << "P_ = " << endl << P_.format(CleanFmt) << endl << endl;
       if ((meas_package.sensor_type_ == MeasurementPackage::LASER) && use_laser_)
         UpdateLidar(meas_package);
       if ((meas_package.sensor_type_ == MeasurementPackage::RADAR) && use_radar_)
@@ -182,6 +180,7 @@ void EKF::ProcessMeasurement(MeasurementPackage meas_package) {
   }
 }
 
+
 /**
  * Predicts the state, and the state covariance matrix.
  * @param {double} delta_t the change in time (in seconds) between the last
@@ -193,7 +192,12 @@ void EKF::Prediction(double delta_t) {
 
   // Vector / Matrix output format
   Eigen::IOFormat CleanFmt(cout.precision(3), 0, ", ", "\n", "  [", "]");
-  double p_x, p_y, v, yaw, yawd;
+  VectorXd x_d  = VectorXd::Zero(n_x_);
+  VectorXd u    = VectorXd::Zero(n_x_);
+  MatrixXd Fj   = MatrixXd::Identity(n_x_, n_x_);
+  MatrixXd Q    = MatrixXd::Zero(n_x_, n_x_);
+
+  double p_x, p_y, v, yaw, yawd, px_d, py_d;
   float dt_2 = delta_t * delta_t;
   float dt_3 = dt_2 * delta_t;
   float dt_4 = dt_3 * delta_t;
@@ -203,54 +207,38 @@ void EKF::Prediction(double delta_t) {
   v     = x_(2);
   yaw   = x_(3);
   yawd  = x_(4);
-
-  VectorXd x_d  = VectorXd::Zero(n_x_);
-  VectorXd u    = VectorXd::Zero(n_x_);
-  MatrixXd Fj   = MatrixXd::Identity(n_x_, n_x_);
-  MatrixXd Q    = MatrixXd::Zero(n_x_, n_x_);
-  //predicted state values
-  double px_p, py_p, v_p, yaw_p, yawd_p;
-
+  
   //avoid division by zero
   if (fabs(yawd) > std::numeric_limits<double>::epsilon()) {
-      px_p = p_x + v/yawd * (sin(yaw + yawd*delta_t) - sin(yaw));
-      py_p = p_y + v/yawd * (cos(yaw) - cos(yaw+yawd*delta_t) );
+      px_d = v/yawd * (sin(yaw + yawd*delta_t) - sin(yaw));
+      py_d = v/yawd * (cos(yaw) - cos(yaw+yawd*delta_t) );
   } else {
-      px_p = p_x + v*delta_t*cos(yaw);
-      py_p = p_y + v*delta_t*sin(yaw);
+      px_d = delta_t*v*cos(yaw);
+      py_d = delta_t*v*sin(yaw);
   }
 
-  // add noise
-  px_p += 0.5*std_a_*delta_t*delta_t * cos(yaw);
-  py_p += 0.5*std_a_*delta_t*delta_t * sin(yaw);
-  // prediction and adding noise
-  v_p     = v + std_a_*delta_t;
-  yaw_p   = yaw + yawd*delta_t + 0.5*std_yawdd_*delta_t*delta_t;
-  yawd_p  = yawd + std_yawdd_*delta_t;
+  // update state by applying state evolution kinematics equations + noise terms
+  x_ <<  p_x  +  px_d           +  0.5*dt_2*cos(yaw)*std_a_,
+         p_y  +  py_d           +  0.5*dt_2*sin(yaw)*std_a_,
+         v    +  0.0            +  delta_t*std_a_,
+         yaw  +  yawd*delta_t   +  0.5*dt_2*std_yawdd_,
+         yawd +  0              +  delta_t*std_yawdd_;
 
-  x_d << px_p, py_p, v_p, yaw_p, yawd_p;
-
-  u <<  0.5*dt_2*cos(yaw)*std_a_,
-        0.5*dt_2*sin(yaw)*std_a_,
-        delta_t*std_a_,
-        0.5*dt_2*std_yawdd_,
-        delta_t*std_yawdd_;
-
-  x_ += x_d + u;
+  // normalize yaw into 2PI range
   x_(3) = fmod(x_(3), 2. * M_PI);
   
   // F matrix is jacobian matrix Fj
   if (fabs(yawd) < std::numeric_limits<double>::epsilon()) {
     yawd = std::numeric_limits<double>::epsilon();
   }
-  double Fj02 = v/yawd * (cos(delta_t*yawd + yaw) - cos(yaw));
-  double Fj03 = 1/yawd * (sin(delta_t*yawd + yaw) - sin(yaw));
-  double Fj04 = delta_t*v/yawd * cos(delta_t*yawd + yaw) - v/(yawd*yawd)*(sin(delta_t*yawd + yaw) - sin(yaw));
-  double Fj12 = v/yawd * (sin(delta_t*yawd + yaw) - sin(yaw));
-  double Fj13 = 1/yawd * (cos(yaw) - cos(delta_t*yawd + yaw));
-  double Fj14 = delta_t*v/yawd * sin(delta_t*yawd + yaw) - v/(yawd*yawd)*(cos(yaw) - cos(delta_t*yawd + yaw));
-  Fj << 1.,  0.,  Fj02, Fj03, Fj04,
-        0.,  1.,  Fj12, Fj13, Fj14,
+  double Fj12 = v/yawd * (cos(delta_t*yawd + yaw) - cos(yaw));
+  double Fj13 = 1./yawd * (sin(delta_t*yawd + yaw) - sin(yaw));
+  double Fj14 = delta_t*v/yawd * cos(delta_t*yawd + yaw) - v/(yawd*yawd)*(sin(delta_t*yawd + yaw) - sin(yaw));
+  double Fj22 = v/yawd * (sin(delta_t*yawd + yaw) - sin(yaw));
+  double Fj23 = 1./yawd * (cos(yaw) - cos(delta_t*yawd + yaw));
+  double Fj24 = delta_t*v/yawd * sin(delta_t*yawd + yaw) - v/(yawd*yawd)*(cos(yaw) - cos(delta_t*yawd + yaw));
+  Fj << 1.,  0.,  Fj12, Fj13, Fj14,
+        0.,  1.,  Fj22, Fj23, Fj24,
         0.,  0.,  0.,    1.,    0.,
         0.,  0.,  1.,    0.,    delta_t,
         0.,  0.,  0.,    0.,    1.;
