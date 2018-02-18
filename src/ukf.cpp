@@ -179,9 +179,21 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
         UpdateRadar(meas_package);
   }
 
+  if (!x_.allFinite()) {
+    cout << "State vector X contains inf variables!" << endl;
+  }
+  if (x_.hasNaN()) {
+    cout << "State vector X contains NaN variables!" << endl;
+  }
+  if (!P_.allFinite()) {
+    cout << "Process covariance matrix P contains inf variables!" << endl;
+  }
+  if (P_.hasNaN()) {
+    cout << "Process covariance matrix P contains NaN variables!" << endl;
+  }
+  
   if (verbose_) {
     // print the output
-    std::string sep = "\n----------------------------------------\n";
     Eigen::IOFormat CleanFmt(cout.precision(3), 0, ", ", "\n", "  [", "]");
     cout << "x_ = " << endl << x_.format(CleanFmt) << endl;
     cout << "P_ = " << endl << P_.format(CleanFmt) << endl << endl;
